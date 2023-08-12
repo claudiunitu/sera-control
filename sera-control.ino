@@ -35,7 +35,7 @@ unsigned long millisStateOnLastScreensaver = 0;
 
 
 // BIOME PARAMS
-float BIOME_HUMIDITY_TARGET = 50;
+float BIOME_HUMIDITY_TARGET = 85;
 
 
 // char printDigits(int digits){
@@ -321,7 +321,7 @@ byte decideFanSpeed(byte currentSpeed, unsigned long currentMillis, unsigned lon
   unsigned long MAXIMUM_MILLIS_FAN_ON = 10ul*60ul*1000ul; // millis to not allow fan to stay ON for more than specified value (has priority)
   unsigned long MINIMUM_MILLIS_FAN_ON = 1ul*60ul*1000ul; // millis to force fan to remain ON once it started
   
-  unsigned long MAXIMUM_MILLIS_FAN_OFF = 5ul*60ul*1000ul;  // millis until fan ON for maintenance airflow (has priority)
+  unsigned long MAXIMUM_MILLIS_FAN_OFF = 5ul*60ul*1000ul;  // millis until fan ON for maintenance airflow. Will stay on until MINIMUM_MILLIS_FAN_ON (has priority)
   unsigned long MINIMUM_MILLIS_FAN_OFF = 1ul*60ul*1000ul; // millis to force fan to stay OFF
   
 
