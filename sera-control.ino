@@ -333,7 +333,7 @@ byte decideFanSpeed(byte currentSpeed, unsigned long currentMillis, unsigned lon
   }
 
   if(!isFanOn && currentMillis - _millisStateWhenFanOff > MAXIMUM_MILLIS_FAN_OFF) {
-    return SPEED_50;
+    return SPEED_75;
   }
   if(!isFanOn && currentMillis - _millisStateWhenFanOff < MINIMUM_MILLIS_FAN_OFF) {
     return SPEED_0;
