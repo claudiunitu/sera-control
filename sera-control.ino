@@ -37,40 +37,43 @@ unsigned long millisStateOnLastScreensaver = 0;
 // BIOME PARAMS
 float BIOME_HUMIDITY_TARGET = 50;
 
-String millisToTimeFormat(unsigned long millis){
-  String finalString = "";
 
+// char printDigits(int digits){
+//   char buffer[5];
+//   if(digits < 10) {
+//     sprintf(buffer, "0:%u", digits);
+//   } else {
+//     sprintf(buffer, "%u", digits);
+//   }
+  
+  
+  
+//   return buffer;
+// }
+
+int millisToTimeFormat(unsigned long millis, int type){
+  
   long day = 86400000; // 86400000 milliseconds in a day
   long hour = 3600000; // 3600000 milliseconds in an hour
   long minute = 60000; // 60000 milliseconds in a minute
   long second =  1000; // 1000 milliseconds in a second
-  
- int days = millis / day ;                                //number of days
- int hours = (millis % day) / hour;                       //the remainder from days division (in milliseconds) divided by hours, this gives the full hours
- int minutes = ((millis % day) % hour) / minute ;         //and so on...
- int seconds = (((millis % day) % hour) % minute) / second;
- 
-  // digital clock display of current time
-  finalString += printDigits(days);  
-  finalString += ":";  
-  finalString += printDigits(hours);  
-  finalString += ":";  
-  finalString += printDigits(minutes);
-  finalString += ":";  
-  finalString += printDigits(seconds);
-  return finalString;
-  
+
+  if(type == 0) {
+    return (((millis % day) % hour) % minute) / second;
+  }
+  if(type == 1) {
+    return ((millis % day) % hour) / minute ;
+  }
+  if(type == 2) {
+    return (millis % day) / hour; 
+  }
+  if(type == 3) {
+    return millis / day;
+  }
+
+
 }
 
-String printDigits(byte digits){
-  String finalString = "";
-  if(digits < 10) {
-    finalString += "0";
-  }
-  finalString += digits;
-    
-  return finalString;   
-}
 
 void showDebugMessageOnDisplay(String message, bool append = false) {
   if(!append) {
@@ -255,14 +258,23 @@ void displayState() {
 
 
   // String fanStateDescription = "";
-
+  unsigned long takeMillisForm;
   if (fanSpeed > 0) {
-    display.println("Fan ON for ");
-    display.println(millisToTimeFormat((millis() - millisStateWhenFanOn) / 1000));
+    takeMillisForm = millisStateWhenFanOn;
+    display.print("Fan ON ");
   } else {
-    display.print("Fan OFF for ");
-    display.println(millisToTimeFormat((millis() - millisStateWhenFanOff) / 1000));
+    takeMillisForm = millisStateWhenFanOff;
+    display.print("Fan OFF ");
   }
+
+  display.print(millisToTimeFormat((millis() - takeMillisForm), 3));
+  display.print(":");
+  display.print(millisToTimeFormat((millis() - takeMillisForm), 2));
+  display.print(":");
+  display.print(millisToTimeFormat((millis() - takeMillisForm), 1));
+  display.print(":");
+  
+  display.println(millisToTimeFormat((millis() - takeMillisForm), 0));
 
   display.display();
 }
@@ -293,6 +305,8 @@ void setFanSpeedDuty(byte speed){
 
 byte decideFanSpeed(byte currentSpeed, unsigned long currentMillis, unsigned long _millisStateWhenFanOn, unsigned long _millisStateWhenFanOff) {
 
+  
+
   bool isFanOn = currentSpeed > 0;
 
   
@@ -305,10 +319,10 @@ byte decideFanSpeed(byte currentSpeed, unsigned long currentMillis, unsigned lon
 // TODO: this can be optimized so it does not calculate on every loop
 
   unsigned long MAXIMUM_MILLIS_FAN_ON = 10ul*60ul*1000ul; // millis to not allow fan to stay ON for more than specified value (has priority)
-  unsigned long MINIMUM_MILLIS_FAN_ON = 2ul*60ul*1000ul; // millis to force fan to remain ON once it started
+  unsigned long MINIMUM_MILLIS_FAN_ON = 1ul*60ul*1000ul; // millis to force fan to remain ON once it started
   
   unsigned long MAXIMUM_MILLIS_FAN_OFF = 5ul*60ul*1000ul;  // millis until fan ON for maintenance airflow (has priority)
-  unsigned long MINIMUM_MILLIS_FAN_OFF = 2ul*60ul*1000ul; // millis to force fan to stay OFF
+  unsigned long MINIMUM_MILLIS_FAN_OFF = 1ul*60ul*1000ul; // millis to force fan to stay OFF
   
 
   if(isFanOn && currentMillis - _millisStateWhenFanOn > MAXIMUM_MILLIS_FAN_ON) {
@@ -336,6 +350,8 @@ byte decideFanSpeed(byte currentSpeed, unsigned long currentMillis, unsigned lon
       return SPEED_50;
     }
       
+  } else {
+    return SPEED_0;
   }
 
 
