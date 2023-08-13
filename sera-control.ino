@@ -7,8 +7,8 @@
 #include <Adafruit_SSD1306.h>
 
 #define LOOP_INTERVAL 1000
-
-#define FAN_MOSFET_PWM_PIN 5
+#define INTAKE_FAN_MOSFET_PWM_PIN 6
+#define RECIRCULATION_FAN_MOSFET_PWM_PIN 5
 #define DHT_PIN 2
 #define DHT_TYPE DHT22
 DHT dht(DHT_PIN, DHT_TYPE);
@@ -27,15 +27,26 @@ float stateHumidity = 0;
 float stateFeelsLike = 0;
 bool isStateError = true;
 
-byte fanSpeed = 0;
-unsigned long millisStateWhenFanOn = 0;
-unsigned long millisStateWhenFanOff = 0;
+// pwm fan values
+int SPEED_100 = 255;
+int SPEED_75 = 227;
+int SPEED_50 = 200;
+int SPEED_0 = 0;
+
+int currentSpeedRecirculationFan = SPEED_0;
+unsigned long millisStateWhenRecirculationFanOn = 0;
+unsigned long millisStateWhenRecirculationFanOff = 0;
+
+int currentSpeedIntakeFan = SPEED_0;
+unsigned long millisStateWhenIntakeFanOn = 0;
+unsigned long millisStateWhenIntakeFanOff = 0;
 
 unsigned long millisStateOnLastScreensaver = 0;
 
 
 // BIOME PARAMS
-float BIOME_HUMIDITY_TARGET = 85;
+float BIOME_HUMIDITY_TARGET = 80;
+float BIOME_HUMIDITY_TARGET_TOLERANCE = 5;
 
 
 // char printDigits(int digits){
@@ -259,12 +270,12 @@ void displayState() {
 
   // String fanStateDescription = "";
   unsigned long takeMillisForm;
-  if (fanSpeed > 0) {
-    takeMillisForm = millisStateWhenFanOn;
-    display.print("Fan ON ");
+  if (currentSpeedRecirculationFan > 0) {
+    takeMillisForm = millisStateWhenRecirculationFanOn;
+    display.print("R Fan ON ");
   } else {
-    takeMillisForm = millisStateWhenFanOff;
-    display.print("Fan OFF ");
+    takeMillisForm = millisStateWhenRecirculationFanOff;
+    display.print("R Fan OFF ");
   }
 
   display.print(millisToTimeFormat((millis() - takeMillisForm), 3));
@@ -279,99 +290,188 @@ void displayState() {
   display.display();
 }
 
-
-void initFan(void) {
-  showDebugMessageOnDisplay("INITIALIZING FAN...");
-  delay(500);
-  showDebugMessageOnDisplay("FAN INITIALIZED");
-  delay(500);
-}
-void testFan(void) {
-  showDebugMessageOnDisplay("TESTING FAN..");
-  showDebugMessageOnDisplay("FAN 100%", true);
-  analogWrite(FAN_MOSFET_PWM_PIN, 255);
-  delay(1000);
-  showDebugMessageOnDisplay("FAN 75%", true);
-  analogWrite(FAN_MOSFET_PWM_PIN, (int)255*0.75);
-  delay(1000);
-  showDebugMessageOnDisplay("FAN 50%", true);
-  analogWrite(FAN_MOSFET_PWM_PIN, (int)255*0.5);
-  delay(1000);
-  analogWrite(FAN_MOSFET_PWM_PIN, 0);
-}
-void setFanSpeedDuty(byte speed){
-  analogWrite(FAN_MOSFET_PWM_PIN, speed);
+void initIntakeFan(void) {
+  // showDebugMessageOnDisplay("INITIALIZING I FAN...");
+  // delay(500);
+  pinMode(INTAKE_FAN_MOSFET_PWM_PIN, OUTPUT);
+	analogWrite(INTAKE_FAN_MOSFET_PWM_PIN, SPEED_0);
+  // showDebugMessageOnDisplay("I FAN INITIALIZED");
+  // delay(500);
 }
 
-byte decideFanSpeed(byte currentSpeed, unsigned long currentMillis, unsigned long _millisStateWhenFanOn, unsigned long _millisStateWhenFanOff) {
+void testIntakeFan(void) {
+  showDebugMessageOnDisplay("TESTING  I FAN..");
+  showDebugMessageOnDisplay("I FAN 100");
+  analogWrite(INTAKE_FAN_MOSFET_PWM_PIN, SPEED_100);
+  delay(1000);
+  showDebugMessageOnDisplay("I FAN 75");
+  analogWrite(INTAKE_FAN_MOSFET_PWM_PIN, SPEED_75);
+  delay(1000);
+  showDebugMessageOnDisplay("I FAN 50");
+  analogWrite(INTAKE_FAN_MOSFET_PWM_PIN, SPEED_50);
+  delay(1000);
+  analogWrite(INTAKE_FAN_MOSFET_PWM_PIN, SPEED_0);
+  showDebugMessageOnDisplay("I FAN TEST DONE");
+  delay(1000);
+}
+void setIntakeFanSpeedDuty(int speed){
+  analogWrite(INTAKE_FAN_MOSFET_PWM_PIN, speed);
+}
+int decideIntakeFanSpeed( int currentSpeed, 
+                                  unsigned long currentMillis, 
+                                  unsigned long _millisStateWhenIntakeFanOn, 
+                                  unsigned long _millisStateWhenIntakeFanOff) {
 
+  bool isIntakeFanOn = currentSpeedIntakeFan > 0;
+
+  unsigned long MAXIMUM_MILLIS_INTAKE_FAN_ON = 2ul*60ul*1000ul; // millis to not allow fan to stay ON for more than specified value 
+  unsigned long MINIMUM_MILLIS_INTAKE_FAN_ON = 1ul*60ul*1000ul; // millis to force fan to remain ON once it started
+
+  unsigned long MAXIMUM_MILLIS_INTAKE_FAN_OFF = 15ul*60ul*1000ul;  // millis until fan ON for maintenance airflow. Will stay on until MINIMUM_MILLIS_FAN_ON
+  unsigned long MINIMUM_MILLIS_INTAKE_FAN_OFF = 1ul*60ul*1000ul; // millis to force fan to stay OFF
   
 
-  bool isFanOn = currentSpeed > 0;
-
-  
-
-  byte SPEED_100 = 255;
-  byte SPEED_75 = 227;
-  byte SPEED_50 = 200;
-  byte SPEED_0 = 0;
-
-// TODO: this can be optimized so it does not calculate on every loop
-
-  unsigned long MAXIMUM_MILLIS_FAN_ON = 10ul*60ul*1000ul; // millis to not allow fan to stay ON for more than specified value (has priority)
-  unsigned long MINIMUM_MILLIS_FAN_ON = 1ul*60ul*1000ul; // millis to force fan to remain ON once it started
-  
-  unsigned long MAXIMUM_MILLIS_FAN_OFF = 5ul*60ul*1000ul;  // millis until fan ON for maintenance airflow. Will stay on until MINIMUM_MILLIS_FAN_ON (has priority)
-  unsigned long MINIMUM_MILLIS_FAN_OFF = 1ul*60ul*1000ul; // millis to force fan to stay OFF
-  
-
-  if(isFanOn && currentMillis - _millisStateWhenFanOn > MAXIMUM_MILLIS_FAN_ON) {
-    return SPEED_0;
-  }
-  if(isFanOn && currentMillis - _millisStateWhenFanOn < MINIMUM_MILLIS_FAN_ON) {
-    return currentSpeed;
-  }
-
-  if(!isFanOn && currentMillis - _millisStateWhenFanOff > MAXIMUM_MILLIS_FAN_OFF) {
-    return SPEED_75;
-  }
-  if(!isFanOn && currentMillis - _millisStateWhenFanOff < MINIMUM_MILLIS_FAN_OFF) {
-    return SPEED_0;
-  }
-
-  
-  if (stateHumidity > BIOME_HUMIDITY_TARGET) {
+  // this can be extracted in separate function
+  if (stateHumidity > BIOME_HUMIDITY_TARGET + BIOME_HUMIDITY_TARGET_TOLERANCE) {
     float humidityDifference = stateHumidity - BIOME_HUMIDITY_TARGET;
-    if(humidityDifference > 10){
+    if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE*2){
       return SPEED_100;
-    } else if(humidityDifference > 5) {
+    } else if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE) {
       return SPEED_75;
     } else {
       return SPEED_50;
     }
       
+  } 
+
+  if(isIntakeFanOn && currentMillis - _millisStateWhenIntakeFanOn > MAXIMUM_MILLIS_INTAKE_FAN_ON) {
+   return SPEED_0;
+  }
+  if(isIntakeFanOn && currentMillis - _millisStateWhenIntakeFanOn < MINIMUM_MILLIS_INTAKE_FAN_ON) {
+    return currentSpeed;
+  }
+
+  if(!isIntakeFanOn && currentMillis - _millisStateWhenIntakeFanOff > MAXIMUM_MILLIS_INTAKE_FAN_OFF) {
+    return SPEED_75;
+  }
+  if(!isIntakeFanOn && currentMillis - _millisStateWhenIntakeFanOff < MINIMUM_MILLIS_INTAKE_FAN_OFF) {
+    return SPEED_0;
+  }
+
+  return SPEED_0;
+
+}
+void setIntakeFanState(void) {
+  int prevFanSpeed = currentSpeedIntakeFan;
+  currentSpeedIntakeFan = decideIntakeFanSpeed(prevFanSpeed, millis(), millisStateWhenIntakeFanOn, millisStateWhenIntakeFanOff); 
+  
+  if(currentSpeedIntakeFan > 0) {
+    if (prevFanSpeed != currentSpeedIntakeFan) {
+      millisStateWhenIntakeFanOn = millis();
+    }
   } else {
+    if (prevFanSpeed > 0) {
+      millisStateWhenIntakeFanOff = millis();
+    }
+  }
+  setIntakeFanSpeedDuty(currentSpeedIntakeFan);
+  // Serial.print("Intake pwm: ");
+  // Serial.println(currentSpeedIntakeFan);
+
+  
+}
+
+
+void initRecirculationFan(void) {
+  // showDebugMessageOnDisplay("INITIALIZING R FAN...");
+  // delay(500);
+  pinMode(RECIRCULATION_FAN_MOSFET_PWM_PIN, OUTPUT);
+	analogWrite(RECIRCULATION_FAN_MOSFET_PWM_PIN, SPEED_0);
+  // showDebugMessageOnDisplay("R FAN INITIALIZED");
+  // delay(500);
+}
+void testRecirculationFan(void) {
+  showDebugMessageOnDisplay("TESTING R FAN..");
+  showDebugMessageOnDisplay("R FAN 100");
+  analogWrite(RECIRCULATION_FAN_MOSFET_PWM_PIN, SPEED_100);
+  delay(1000);
+  showDebugMessageOnDisplay("R FAN 75");
+  analogWrite(RECIRCULATION_FAN_MOSFET_PWM_PIN, SPEED_75);
+  delay(1000);
+  showDebugMessageOnDisplay("R FAN 50");
+  analogWrite(RECIRCULATION_FAN_MOSFET_PWM_PIN, SPEED_50);
+  delay(1000);
+  analogWrite(RECIRCULATION_FAN_MOSFET_PWM_PIN, SPEED_0);
+  showDebugMessageOnDisplay("R FAN TEST DONE");
+  delay(1000);
+}
+void setRecirculationFanSpeedDuty(int speed){
+  analogWrite(RECIRCULATION_FAN_MOSFET_PWM_PIN, speed);
+}
+
+int decideRecirculationFanSpeed( int currentSpeed, 
+                                  unsigned long currentMillis, 
+                                  unsigned long _millisStateWhenReirculationFanOn, 
+                                  unsigned long _millisStateWhenRecirculationFanOff) {
+
+  bool isRecirculationFanOn = currentSpeedRecirculationFan > 0;
+
+  unsigned long MAXIMUM_MILLIS__RECIRCULATION_FAN_ON = 2ul*60ul*1000ul; // millis to not allow fan to stay ON for more than specified value (has priority)
+  unsigned long MINIMUM_MILLIS__RECIRCULATION_FAN_ON = 1ul*60ul*1000ul; // millis to force fan to remain ON once it started
+  
+  unsigned long MAXIMUM_MILLIS_RECIRCULATION_FAN_OFF = 5ul*60ul*1000ul;  // millis until fan ON for maintenance airflow. Will stay on until MINIMUM_MILLIS_FAN_ON (has priority)
+  unsigned long MINIMUM_MILLIS_RECIRCULATION_FAN_OFF = 1ul*60ul*1000ul; // millis to force fan to stay OFF
+
+
+  // this can be extracted in separate function
+  if (stateHumidity > BIOME_HUMIDITY_TARGET + BIOME_HUMIDITY_TARGET_TOLERANCE) {
+    float humidityDifference = stateHumidity - BIOME_HUMIDITY_TARGET;
+    if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE*2){
+      return SPEED_100;
+    } else if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE) {
+      return SPEED_75;
+    } else {
+      return SPEED_50;
+    }
+      
+  }
+  
+
+  if(isRecirculationFanOn && currentMillis - _millisStateWhenReirculationFanOn > MAXIMUM_MILLIS__RECIRCULATION_FAN_ON) {
+    return SPEED_0;
+  }
+  if(isRecirculationFanOn && currentMillis - _millisStateWhenReirculationFanOn < MINIMUM_MILLIS__RECIRCULATION_FAN_ON) {
+    return currentSpeed;
+  }
+
+  if(!isRecirculationFanOn && currentMillis - _millisStateWhenRecirculationFanOff > MAXIMUM_MILLIS_RECIRCULATION_FAN_OFF) {
+    return SPEED_75;
+  }
+  if(!isRecirculationFanOn && currentMillis - _millisStateWhenRecirculationFanOff < MINIMUM_MILLIS_RECIRCULATION_FAN_OFF) {
     return SPEED_0;
   }
 
 
-  return currentSpeed;
+  return SPEED_0;
 
 }
-void setFanState(void) {
-  byte prevFanSpeed = fanSpeed;
-  fanSpeed = decideFanSpeed(prevFanSpeed, millis(), millisStateWhenFanOn, millisStateWhenFanOff); 
+
+void setRecirculationFanState(void) {
+  int prevFanSpeed = currentSpeedRecirculationFan;
+  currentSpeedRecirculationFan = decideRecirculationFanSpeed(prevFanSpeed, millis(), millisStateWhenRecirculationFanOn, millisStateWhenRecirculationFanOff); 
   
-  if(fanSpeed > 0) {
-    if (prevFanSpeed != fanSpeed) {
-      millisStateWhenFanOn = millis();
+  if(currentSpeedRecirculationFan > 0) {
+    if (prevFanSpeed != currentSpeedRecirculationFan) {
+      millisStateWhenRecirculationFanOn = millis();
     }
   } else {
     if (prevFanSpeed > 0) {
-      millisStateWhenFanOff = millis();
+      millisStateWhenRecirculationFanOff = millis();
     }
   }
-  setFanSpeedDuty(fanSpeed);
+  setRecirculationFanSpeedDuty(currentSpeedRecirculationFan);
+  // Serial.print("Recirculation pwm: ");
+  // Serial.println(currentSpeedRecirculationFan);
 
   
 }
@@ -385,11 +485,17 @@ void setup() {
       ;  // Don't proceed, loop forever
   }
 
-  initFan();
+  // testDisplay();
 
-  //testDisplay();
-  //displayWelcome();
-  // testFan();
+  // displayWelcome();
+
+  initIntakeFan();
+  // testIntakeFan();
+
+  initRecirculationFan();
+  // testRecirculationFan();
+
+  
 
   dht.begin();
 }
@@ -398,7 +504,9 @@ void loop() {
 
   readDHTSensor();
 
-  setFanState();
+  setRecirculationFanState();
+
+  setIntakeFanState();
 
   if (millis() - millisStateOnLastScreensaver < 120000) {
     displayState();
