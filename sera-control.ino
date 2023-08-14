@@ -347,7 +347,7 @@ int decideIntakeFanSpeed( int currentSpeed,
   bool isIntakeFanOn = currentSpeedIntakeFan > 0;
 
   unsigned long MAXIMUM_MILLIS_INTAKE_FAN_ON = 2ul*60ul*1000ul; // millis to not allow fan to stay ON for more than specified value 
-  unsigned long MINIMUM_MILLIS_INTAKE_FAN_ON = 1ul*60ul*1000ul; // millis to force fan to remain ON once it started
+  unsigned long MINIMUM_MILLIS_INTAKE_FAN_ON = 10ul*1000ul; // millis to force fan to remain ON once it started
 
   unsigned long MAXIMUM_MILLIS_INTAKE_FAN_OFF = 15ul*60ul*1000ul;  // millis until fan ON for maintenance airflow. Will stay on until MINIMUM_MILLIS_FAN_ON
   unsigned long MINIMUM_MILLIS_INTAKE_FAN_OFF = 1ul*60ul*1000ul; // millis to force fan to stay OFF
