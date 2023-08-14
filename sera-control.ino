@@ -6,7 +6,7 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-#define LOOP_INTERVAL 1000
+#define LOOP_INTERVAL 500
 #define INTAKE_FAN_MOSFET_PWM_PIN 6
 #define RECIRCULATION_FAN_MOSFET_PWM_PIN 5
 #define DHT_PIN 2
@@ -37,6 +37,7 @@ int currentSpeedRecirculationFan = SPEED_0;
 unsigned long millisStateWhenRecirculationFanOn = 0;
 unsigned long millisStateWhenRecirculationFanOff = 0;
 
+bool forceHumidityEvacuationUntillTargetReached = false;
 int currentSpeedIntakeFan = SPEED_0;
 unsigned long millisStateWhenIntakeFanOn = 0;
 unsigned long millisStateWhenIntakeFanOff = 0;
@@ -322,6 +323,27 @@ int decideIntakeFanSpeed( int currentSpeed,
                                   unsigned long _millisStateWhenIntakeFanOn, 
                                   unsigned long _millisStateWhenIntakeFanOff) {
 
+  
+  if (stateHumidity > BIOME_HUMIDITY_TARGET + BIOME_HUMIDITY_TARGET_TOLERANCE) {
+    forceHumidityEvacuationUntillTargetReached = true;
+  }
+
+  if(forceHumidityEvacuationUntillTargetReached) {
+    float humidityDifference = stateHumidity - BIOME_HUMIDITY_TARGET;
+    if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE*2){
+      return SPEED_100;
+    } else if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE) {
+      return SPEED_75;
+    } else if(humidityDifference > 0) {
+      return SPEED_50;
+    } else {
+      forceHumidityEvacuationUntillTargetReached = false;
+      return SPEED_0;
+    }
+  }
+
+
+  // if humidity is in check then just do maintenance if needed
   bool isIntakeFanOn = currentSpeedIntakeFan > 0;
 
   unsigned long MAXIMUM_MILLIS_INTAKE_FAN_ON = 2ul*60ul*1000ul; // millis to not allow fan to stay ON for more than specified value 
@@ -330,20 +352,7 @@ int decideIntakeFanSpeed( int currentSpeed,
   unsigned long MAXIMUM_MILLIS_INTAKE_FAN_OFF = 15ul*60ul*1000ul;  // millis until fan ON for maintenance airflow. Will stay on until MINIMUM_MILLIS_FAN_ON
   unsigned long MINIMUM_MILLIS_INTAKE_FAN_OFF = 1ul*60ul*1000ul; // millis to force fan to stay OFF
   
-
-  // this can be extracted in separate function
-  if (stateHumidity > BIOME_HUMIDITY_TARGET + BIOME_HUMIDITY_TARGET_TOLERANCE) {
-    float humidityDifference = stateHumidity - BIOME_HUMIDITY_TARGET;
-    if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE*2){
-      return SPEED_100;
-    } else if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE) {
-      return SPEED_75;
-    } else {
-      return SPEED_50;
-    }
-      
-  } 
-
+  
   if(isIntakeFanOn && currentMillis - _millisStateWhenIntakeFanOn > MAXIMUM_MILLIS_INTAKE_FAN_ON) {
    return SPEED_0;
   }
@@ -414,28 +423,20 @@ int decideRecirculationFanSpeed( int currentSpeed,
                                   unsigned long _millisStateWhenReirculationFanOn, 
                                   unsigned long _millisStateWhenRecirculationFanOff) {
 
-  bool isRecirculationFanOn = currentSpeedRecirculationFan > 0;
+  // recirculate as long as intake is on
+  if(currentSpeedIntakeFan > 0) {
+    return SPEED_50;
+  }
 
+  
   unsigned long MAXIMUM_MILLIS__RECIRCULATION_FAN_ON = 2ul*60ul*1000ul; // millis to not allow fan to stay ON for more than specified value (has priority)
   unsigned long MINIMUM_MILLIS__RECIRCULATION_FAN_ON = 1ul*60ul*1000ul; // millis to force fan to remain ON once it started
   
   unsigned long MAXIMUM_MILLIS_RECIRCULATION_FAN_OFF = 5ul*60ul*1000ul;  // millis until fan ON for maintenance airflow. Will stay on until MINIMUM_MILLIS_FAN_ON (has priority)
   unsigned long MINIMUM_MILLIS_RECIRCULATION_FAN_OFF = 1ul*60ul*1000ul; // millis to force fan to stay OFF
-
-
-  // this can be extracted in separate function
-  if (stateHumidity > BIOME_HUMIDITY_TARGET + BIOME_HUMIDITY_TARGET_TOLERANCE) {
-    float humidityDifference = stateHumidity - BIOME_HUMIDITY_TARGET;
-    if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE*2){
-      return SPEED_100;
-    } else if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE) {
-      return SPEED_75;
-    } else {
-      return SPEED_50;
-    }
-      
-  }
   
+
+  bool isRecirculationFanOn = currentSpeedRecirculationFan > 0;
 
   if(isRecirculationFanOn && currentMillis - _millisStateWhenReirculationFanOn > MAXIMUM_MILLIS__RECIRCULATION_FAN_ON) {
     return SPEED_0;
@@ -450,7 +451,6 @@ int decideRecirculationFanSpeed( int currentSpeed,
   if(!isRecirculationFanOn && currentMillis - _millisStateWhenRecirculationFanOff < MINIMUM_MILLIS_RECIRCULATION_FAN_OFF) {
     return SPEED_0;
   }
-
 
   return SPEED_0;
 
