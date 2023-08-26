@@ -6,9 +6,9 @@
 #include <Adafruit_GFX.h>
 #include <Adafruit_SSD1306.h>
 
-#define LOOP_INTERVAL 500
-#define INTAKE_FAN_MOSFET_PWM_PIN 6
-#define RECIRCULATION_FAN_MOSFET_PWM_PIN 5
+#define LOOP_INTERVAL 2000
+#define INTAKE_FAN_MOSFET_PWM_PIN 11
+#define RECIRCULATION_FAN_MOSFET_PWM_PIN 10
 #define HUMIDIFIER_MOSFET_PIN 3
 #define DHT_PIN 2
 #define DHT_TYPE DHT22
@@ -30,8 +30,9 @@ bool isStateError = true;
 
 // pwm fan values
 int SPEED_100 = 255;
-int SPEED_75 = 227;
-int SPEED_50 = 200;
+int SPEED_75 = 190;
+int SPEED_50 = 125;
+int SPEED_25 = 63;
 int SPEED_0 = 0;
 
 int currentSpeedRecirculationFan = SPEED_0;
@@ -54,8 +55,8 @@ unsigned long millisStateOnLastScreensaver = 0;
 
 
 // BIOME PARAMS
-float BIOME_HUMIDITY_TARGET = 83;
-float BIOME_HUMIDITY_TARGET_TOLERANCE = 7;
+float BIOME_HUMIDITY_TARGET = 75;
+float BIOME_HUMIDITY_TARGET_TOLERANCE = 5;
 
 
 
@@ -264,7 +265,7 @@ void setIntakeFanSpeedDuty(int speed){
 int decideIntakeFanSpeed( int currentSpeed, 
                                   unsigned long currentMillis, 
                                   unsigned long _millisOnStateChangeIntakeFan) {
-  unsigned long MINIMUM_MILLIS_TO_AVOID_INTAKE_AFTER_HUMIDIFICATION = 10ul*60ul*1000ul;
+  unsigned long MINIMUM_MILLIS_TO_AVOID_INTAKE_AFTER_HUMIDIFICATION = 1ul*60ul*1000ul;
   unsigned long millisSinceLastHumidification = millis() - millisWhenLastHumidificationEnded;
 
   if(isHumidifierOn || millisSinceLastHumidification < MINIMUM_MILLIS_TO_AVOID_INTAKE_AFTER_HUMIDIFICATION  ) {
@@ -277,12 +278,14 @@ int decideIntakeFanSpeed( int currentSpeed,
 
   if(forceHumidityEvacuationUntillTargetReached) {
     float humidityDifference = stateHumidity - BIOME_HUMIDITY_TARGET;
-    if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE*2){
+    if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE*3){
       return SPEED_100;
-    } else if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE) {
+    } else if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE*2) {
       return SPEED_75;
-    } else if(humidityDifference > 0) {
+    } else if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE) {
       return SPEED_50;
+    } else if(humidityDifference > 0) {
+      return SPEED_25;
     } else {
       forceHumidityEvacuationUntillTargetReached = false;
       return SPEED_0;
@@ -308,7 +311,7 @@ int decideIntakeFanSpeed( int currentSpeed,
   }
 
   if(!isIntakeFanOn && currentMillis - _millisOnStateChangeIntakeFan > MAXIMUM_MILLIS_INTAKE_FAN_OFF) {
-    return SPEED_75;
+    return SPEED_25;
   }
   if(!isIntakeFanOn && currentMillis - _millisOnStateChangeIntakeFan < MINIMUM_MILLIS_INTAKE_FAN_OFF) {
     return SPEED_0;
@@ -341,6 +344,7 @@ void setIntakeFanState(void) {
 void initRecirculationFan(void) {
   // verify if pin supports pwm
   // digitalPinHasPWM(RECIRCULATION_FAN_MOSFET_PWM_PIN)
+  
   pinMode(RECIRCULATION_FAN_MOSFET_PWM_PIN, OUTPUT);
 	analogWrite(RECIRCULATION_FAN_MOSFET_PWM_PIN, SPEED_0);
 }
@@ -356,7 +360,7 @@ int decideRecirculationFanSpeed( int currentSpeed,
   
   // recirculate as long as intake or humidifier is on
   if(currentSpeedIntakeFan > 0 || isHumidifierOn == true) {
-    return SPEED_50;
+    return SPEED_25;
   }
 
   
@@ -377,7 +381,7 @@ int decideRecirculationFanSpeed( int currentSpeed,
   }
 
   if(!isRecirculationFanOn && currentMillis - _millisOnStateChangeReirculationFan > MAXIMUM_MILLIS_RECIRCULATION_FAN_OFF) {
-    return SPEED_75;
+    return SPEED_25;
   }
   if(!isRecirculationFanOn && currentMillis - _millisOnStateChangeReirculationFan < MINIMUM_MILLIS_RECIRCULATION_FAN_OFF) {
     return SPEED_0;
