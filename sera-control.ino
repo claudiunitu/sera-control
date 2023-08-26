@@ -55,7 +55,7 @@ unsigned long millisStateOnLastScreensaver = 0;
 
 
 // BIOME PARAMS
-float BIOME_HUMIDITY_TARGET = 75;
+float BIOME_HUMIDITY_TARGET = 80;
 float BIOME_HUMIDITY_TARGET_TOLERANCE = 5;
 
 
@@ -215,6 +215,9 @@ void displayState() {
   char humiditySymbol = (char)37;
   humidityDisplay += humiditySymbol;
   humidityDisplay += " RH";
+  humidityDisplay += " (";
+  humidityDisplay += BIOME_HUMIDITY_TARGET;
+  humidityDisplay += ")";
 
 
   display.println(humidityDisplay);
