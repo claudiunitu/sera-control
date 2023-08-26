@@ -28,19 +28,28 @@ float stateHumidity = 0;
 float stateFeelsLike = 0;
 bool isStateError = true;
 
-// pwm fan values
-int SPEED_100 = 255;
-int SPEED_75 = 190;
-int SPEED_50 = 125;
-int SPEED_25 = 63;
-int SPEED_0 = 0;
+// pwm fan values (for approx 500Hz when using 5v mini fans)
+byte FAN_MIN_PWM_DUTY = 90;
+byte FAN_MAX_PWM_DUTY = 255;
+byte FAN_MIN_SPEED = 0;
+byte FAN_MAX_SPEED = 10;
 
-int currentSpeedRecirculationFan = SPEED_0;
+byte getFanPwmDuty(byte speed) {
+  if(speed > FAN_MAX_SPEED){
+    return FAN_MAX_SPEED;
+  }
+  if(speed < 1){
+    return 0;
+  }
+  return (speed * (FAN_MIN_PWM_DUTY / FAN_MAX_SPEED)) + FAN_MIN_PWM_DUTY;
+}
+
+int currentSpeedRecirculationFan = getFanPwmDuty(0);
 unsigned long millisOnStateChangeRecirculationFan = 0;
 // unsigned long millisStateWhenRecirculationFanOff = 0;
 
 bool forceHumidityEvacuationUntillTargetReached = false;
-int currentSpeedIntakeFan = SPEED_0;
+int currentSpeedIntakeFan = getFanPwmDuty(0);
 unsigned long millisOnStateChangeIntakeFan = 0;
 // unsigned long millisStateWhenIntakeFanOff = 0;
 
@@ -255,11 +264,13 @@ void displayState() {
   display.display();
 }
 
+
+
 void initIntakeFan(void) {
   // verify if pin supports pwm
   // digitalPinHasPWM(INTAKE_FAN_MOSFET_PWM_PIN)
   pinMode(INTAKE_FAN_MOSFET_PWM_PIN, OUTPUT);
-	analogWrite(INTAKE_FAN_MOSFET_PWM_PIN, SPEED_0);
+	analogWrite(INTAKE_FAN_MOSFET_PWM_PIN, getFanPwmDuty(0));
 }
 
 void setIntakeFanSpeedDuty(int speed){
@@ -282,16 +293,16 @@ int decideIntakeFanSpeed( int currentSpeed,
   if(forceHumidityEvacuationUntillTargetReached) {
     float humidityDifference = stateHumidity - BIOME_HUMIDITY_TARGET;
     if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE*3){
-      return SPEED_100;
+      return getFanPwmDuty(10);
     } else if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE*2) {
-      return SPEED_75;
+      return getFanPwmDuty(7);
     } else if(humidityDifference > BIOME_HUMIDITY_TARGET_TOLERANCE) {
-      return SPEED_50;
+      return getFanPwmDuty(5);
     } else if(humidityDifference > 0) {
-      return SPEED_25;
+      return getFanPwmDuty(2);
     } else {
       forceHumidityEvacuationUntillTargetReached = false;
-      return SPEED_0;
+      return getFanPwmDuty(0);
     }
   }
 
@@ -307,20 +318,20 @@ int decideIntakeFanSpeed( int currentSpeed,
   
   
   if(isIntakeFanOn && currentMillis - _millisOnStateChangeIntakeFan > MAXIMUM_MILLIS_INTAKE_FAN_ON) {
-   return SPEED_0;
+   return getFanPwmDuty(0);
   }
   if(isIntakeFanOn && currentMillis - _millisOnStateChangeIntakeFan < MINIMUM_MILLIS_INTAKE_FAN_ON) {
     return currentSpeed;
   }
 
   if(!isIntakeFanOn && currentMillis - _millisOnStateChangeIntakeFan > MAXIMUM_MILLIS_INTAKE_FAN_OFF) {
-    return SPEED_25;
+    return getFanPwmDuty(1);
   }
   if(!isIntakeFanOn && currentMillis - _millisOnStateChangeIntakeFan < MINIMUM_MILLIS_INTAKE_FAN_OFF) {
-    return SPEED_0;
+    return getFanPwmDuty(0);
   }
 
-  return SPEED_0;
+  return getFanPwmDuty(0);
 
 }
 void setIntakeFanState(void) {
@@ -349,7 +360,7 @@ void initRecirculationFan(void) {
   // digitalPinHasPWM(RECIRCULATION_FAN_MOSFET_PWM_PIN)
   
   pinMode(RECIRCULATION_FAN_MOSFET_PWM_PIN, OUTPUT);
-	analogWrite(RECIRCULATION_FAN_MOSFET_PWM_PIN, SPEED_0);
+	analogWrite(RECIRCULATION_FAN_MOSFET_PWM_PIN, getFanPwmDuty(0));
 }
 
 void setRecirculationFanSpeedDuty(int speed){
@@ -363,7 +374,7 @@ int decideRecirculationFanSpeed( int currentSpeed,
   
   // recirculate as long as intake or humidifier is on
   if(currentSpeedIntakeFan > 0 || isHumidifierOn == true) {
-    return SPEED_25;
+    return getFanPwmDuty(1);
   }
 
   
@@ -377,20 +388,20 @@ int decideRecirculationFanSpeed( int currentSpeed,
   bool isRecirculationFanOn = currentSpeedRecirculationFan > 0;
 
   if(isRecirculationFanOn && currentMillis - _millisOnStateChangeReirculationFan > MAXIMUM_MILLIS__RECIRCULATION_FAN_ON) {
-    return SPEED_0;
+    return getFanPwmDuty(0);
   }
   if(isRecirculationFanOn && currentMillis - _millisOnStateChangeReirculationFan < MINIMUM_MILLIS__RECIRCULATION_FAN_ON) {
     return currentSpeed;
   }
 
   if(!isRecirculationFanOn && currentMillis - _millisOnStateChangeReirculationFan > MAXIMUM_MILLIS_RECIRCULATION_FAN_OFF) {
-    return SPEED_25;
+    return getFanPwmDuty(1);
   }
   if(!isRecirculationFanOn && currentMillis - _millisOnStateChangeReirculationFan < MINIMUM_MILLIS_RECIRCULATION_FAN_OFF) {
-    return SPEED_0;
+    return getFanPwmDuty(0);
   }
 
-  return SPEED_0;
+  return getFanPwmDuty(0);
 
 }
 
