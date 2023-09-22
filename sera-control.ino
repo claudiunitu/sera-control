@@ -58,14 +58,19 @@ bool isHumidifierOn = false;
 unsigned long millisOnStateChangeHumidifier = 0;
 unsigned long millisWhenLastHumidificationEnded = 0;
 
+bool isPasiveHumidifierOn = false;
+unsigned long millisOnStateChangePasiveHumidifier = 0;
+
 
 unsigned long millisStateOnLastScreensaver = 0;
 
 
 
 // BIOME PARAMS
-float BIOME_HUMIDITY_TARGET = 80;
-float BIOME_HUMIDITY_TARGET_TOLERANCE = 5;
+float BIOME_HUMIDITY_TARGET = 88;
+float BIOME_HUMIDITY_TARGET_TOLERANCE = 2;
+unsigned long BIOME_FORCE_PASIVE_HUMIDIFIER_CYCLE_ON_MILLIS = 14ul*60ul*60ul*1000ul;
+unsigned long BIOME_FORCE_PASIVE_HUMIDIFIER_CYCLE_OFF_MILLIS = 14ul*60ul*60ul*1000ul;
 
 
 
@@ -208,8 +213,8 @@ void displayState() {
 
   display.setTextColor(SSD1306_BLACK, SSD1306_WHITE);  // Draw 'inverse' text
 
-  display.println("    SERA  CONTROL    ");
-  display.setCursor(display.getCursorX(), display.getCursorY() + 2);
+  // display.println("    SERA  CONTROL    ");
+  // display.setCursor(display.getCursorX(), display.getCursorY() + 2);
 
   if (isStateError) {
     display.println("State error!");
@@ -246,25 +251,84 @@ void displayState() {
   display.println("C Temp Feels");
 
 
+  // recirculation info
   if (currentSpeedRecirculationFan > 0) {
-    display.print("R Fan ON ");
+    display.print("R Fan 1 ");
   } else {
-    display.print("R Fan OFF ");
+    display.print("R Fan 0 ");
   }
-
   display.print(millisToTimeFormat((millis() - millisOnStateChangeRecirculationFan), 3));
   display.print(":");
   display.print(millisToTimeFormat((millis() - millisOnStateChangeRecirculationFan), 2));
   display.print(":");
   display.print(millisToTimeFormat((millis() - millisOnStateChangeRecirculationFan), 1));
   display.print(":");
-  
   display.println(millisToTimeFormat((millis() - millisOnStateChangeRecirculationFan), 0));
+
+  // air intake info
+  if (currentSpeedIntakeFan > 0) {
+    display.print("I Fan 1 ");
+  } else {
+    display.print("I Fan 0 ");
+  }
+
+  display.print(millisToTimeFormat((millis() - millisOnStateChangeIntakeFan), 3));
+  display.print(":");
+  display.print(millisToTimeFormat((millis() - millisOnStateChangeIntakeFan), 2));
+  display.print(":");
+  display.print(millisToTimeFormat((millis() - millisOnStateChangeIntakeFan), 1));
+  display.print(":");
+  display.println(millisToTimeFormat((millis() - millisOnStateChangeIntakeFan), 0));
+
+  // passive humidifier  info
+  if (isPasiveHumidifierOn) {
+    display.print("P Hum 1 ");
+  } else {
+    display.print("P Hum 0 ");
+  }
+
+  display.print(millisToTimeFormat((millis() - millisOnStateChangePasiveHumidifier), 3));
+  display.print(":");
+  display.print(millisToTimeFormat((millis() - millisOnStateChangePasiveHumidifier), 2));
+  display.print(":");
+  display.print(millisToTimeFormat((millis() - millisOnStateChangePasiveHumidifier), 1));
+  display.print(":");
+  display.println(millisToTimeFormat((millis() - millisOnStateChangePasiveHumidifier), 0));
+
+  display.display();
+
+  // active humidifier  info
+  if (isHumidifierOn) {
+    display.print("A Hum 1 ");
+  } else {
+    display.print("A Hum 0 ");
+  }
+
+  display.print(millisToTimeFormat((millis() - millisOnStateChangeHumidifier), 3));
+  display.print(":");
+  display.print(millisToTimeFormat((millis() - millisOnStateChangeHumidifier), 2));
+  display.print(":");
+  display.print(millisToTimeFormat((millis() - millisOnStateChangeHumidifier), 1));
+  display.print(":");
+  display.println(millisToTimeFormat((millis() - millisOnStateChangeHumidifier), 0));
 
   display.display();
 }
 
-
+void setPassiveHumidifierState(void) {
+  if(isPasiveHumidifierOn){
+    if(millis() - millisOnStateChangePasiveHumidifier > BIOME_FORCE_PASIVE_HUMIDIFIER_CYCLE_ON_MILLIS) {
+      isPasiveHumidifierOn = !isPasiveHumidifierOn;
+      millisOnStateChangePasiveHumidifier = millis();
+    }
+  } else {
+    if(millis() - millisOnStateChangePasiveHumidifier > BIOME_FORCE_PASIVE_HUMIDIFIER_CYCLE_OFF_MILLIS) {
+      isPasiveHumidifierOn = !isPasiveHumidifierOn;
+      millisOnStateChangePasiveHumidifier = millis();
+    }
+  }
+  
+}
 
 void initIntakeFan(void) {
   // verify if pin supports pwm
@@ -282,7 +346,7 @@ int decideIntakeFanSpeed( int currentSpeed,
   unsigned long MINIMUM_MILLIS_TO_AVOID_INTAKE_AFTER_HUMIDIFICATION = 1ul*60ul*1000ul;
   unsigned long millisSinceLastHumidification = millis() - millisWhenLastHumidificationEnded;
 
-  if(isHumidifierOn || millisSinceLastHumidification < MINIMUM_MILLIS_TO_AVOID_INTAKE_AFTER_HUMIDIFICATION  ) {
+  if(isHumidifierOn || isPasiveHumidifierOn || millisSinceLastHumidification < MINIMUM_MILLIS_TO_AVOID_INTAKE_AFTER_HUMIDIFICATION  ) {
     return false;
   }
   
@@ -306,7 +370,7 @@ int decideIntakeFanSpeed( int currentSpeed,
     }
   }
 
-
+  // TODO: this can be wrapped in decideIntakeFanMaintenanceSpeed()
   // if humidity is in check then just do maintenance if needed
   bool isIntakeFanOn = currentSpeedIntakeFan > 0;
 
@@ -377,7 +441,7 @@ int decideRecirculationFanSpeed( int currentSpeed,
     return getFanPwmDuty(1);
   }
 
-  
+  // TODO: this can be wrapped in decideRecirculationFanMaintenanceSpeed()
   unsigned long MAXIMUM_MILLIS__RECIRCULATION_FAN_ON = 2ul*60ul*1000ul; // millis to not allow fan to stay ON for more than specified value (has priority)
   unsigned long MINIMUM_MILLIS__RECIRCULATION_FAN_ON = 1ul*60ul*1000ul; // millis to force fan to remain ON once it started
   
@@ -509,17 +573,12 @@ void setup() {
       ;  // Don't proceed, loop forever
   }
 
-  // testDisplay();
-
-  // displayWelcome();
 
   initIntakeFan();
-  // testIntakeFan();
 
   initRecirculationFan();
-  // testRecirculationFan();
 
-  initHumidifier();
+  // initHumidifier();
   
 
   dht.begin();
@@ -529,11 +588,13 @@ void loop() {
 
   readDHTSensor();
 
+  setPassiveHumidifierState();
+
   setRecirculationFanState();
 
   setIntakeFanState();
 
-  setHumidifierState();
+  // setHumidifierState();
 
   if (millis() - millisStateOnLastScreensaver < 120000) {
     displayState();
