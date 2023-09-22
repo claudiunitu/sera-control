@@ -10,6 +10,7 @@
 #define INTAKE_FAN_MOSFET_PWM_PIN 11
 #define RECIRCULATION_FAN_MOSFET_PWM_PIN 10
 #define HUMIDIFIER_MOSFET_PIN 3
+#define BUTTON_TOGGLE_PASSIVE_HUMIDIFIER 4
 #define DHT_PIN 2
 #define DHT_TYPE DHT22
 DHT dht(DHT_PIN, DHT_TYPE);
@@ -281,7 +282,7 @@ void displayState() {
   display.println(millisToTimeFormat((millis() - millisOnStateChangeIntakeFan), 0));
 
   // passive humidifier  info
-  if (isPasiveHumidifierOn) {
+  if (isPasiveHumidifierOn == true) {
     display.print("P Hum 1 ");
   } else {
     display.print("P Hum 0 ");
@@ -298,7 +299,7 @@ void displayState() {
   display.display();
 
   // active humidifier  info
-  if (isHumidifierOn) {
+  if (isHumidifierOn == true) {
     display.print("A Hum 1 ");
   } else {
     display.print("A Hum 0 ");
@@ -316,18 +317,37 @@ void displayState() {
 }
 
 void setPassiveHumidifierState(void) {
-  if(isPasiveHumidifierOn){
+  
+  if(isPasiveHumidifierOn == true){
     if(millis() - millisOnStateChangePasiveHumidifier > BIOME_FORCE_PASIVE_HUMIDIFIER_CYCLE_ON_MILLIS) {
-      isPasiveHumidifierOn = !isPasiveHumidifierOn;
+      isPasiveHumidifierOn = false;
       millisOnStateChangePasiveHumidifier = millis();
     }
   } else {
     if(millis() - millisOnStateChangePasiveHumidifier > BIOME_FORCE_PASIVE_HUMIDIFIER_CYCLE_OFF_MILLIS) {
-      isPasiveHumidifierOn = !isPasiveHumidifierOn;
+      isPasiveHumidifierOn = true;
       millisOnStateChangePasiveHumidifier = millis();
     }
   }
   
+}
+void forceTogglePassiveHumidifierState(void) {
+  if(isPasiveHumidifierOn == true) {
+    isPasiveHumidifierOn = false;
+  } else {
+    isPasiveHumidifierOn = true;
+  }
+  millisOnStateChangePasiveHumidifier = millis();
+}
+
+void initTogglePassiveHumidifierbutton(void) {
+  pinMode(BUTTON_TOGGLE_PASSIVE_HUMIDIFIER, INPUT_PULLUP);
+}
+void handlePassiveHumidifierButtonState(void) {
+  int state = digitalRead(BUTTON_TOGGLE_PASSIVE_HUMIDIFIER);
+  if(state == 0) {
+    forceTogglePassiveHumidifierState();
+  }
 }
 
 void initIntakeFan(void) {
@@ -564,6 +584,7 @@ void setHumidifierState(void) {
   
 }
 
+
 void setup() {
   Serial.begin(9600);
 
@@ -579,6 +600,8 @@ void setup() {
   initRecirculationFan();
 
   // initHumidifier();
+
+  initTogglePassiveHumidifierbutton();
   
 
   dht.begin();
@@ -604,7 +627,7 @@ void loop() {
   }
 
 
-
+  handlePassiveHumidifierButtonState();
 
   delay(LOOP_INTERVAL);
 }
