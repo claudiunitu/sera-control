@@ -61,6 +61,9 @@ unsigned long millisWhenLastHumidificationEnded = 0;
 
 bool isPasiveHumidifierOn = false;
 unsigned long millisOnStateChangePasiveHumidifier = 0;
+unsigned long minRandomMillisToStayInCurrentPassiveHumidifierState = 1ul*60ul*60ul*1000ul;
+unsigned long maxRandomMillisToStayInCurrentPassiveHumidifierState = 24ul*60ul*60ul*1000ul;
+unsigned long randomMillisToStayInCurrentPassiveHumidifierState = random(minRandomMillisToStayInCurrentPassiveHumidifierState, maxRandomMillisToStayInCurrentPassiveHumidifierState);
 
 
 unsigned long millisStateOnLastScreensaver = 0;
@@ -70,8 +73,6 @@ unsigned long millisStateOnLastScreensaver = 0;
 // BIOME PARAMS
 float BIOME_HUMIDITY_TARGET = 88;
 float BIOME_HUMIDITY_TARGET_TOLERANCE = 2;
-unsigned long BIOME_FORCE_PASIVE_HUMIDIFIER_CYCLE_ON_MILLIS = 14ul*60ul*60ul*1000ul;
-unsigned long BIOME_FORCE_PASIVE_HUMIDIFIER_CYCLE_OFF_MILLIS = 14ul*60ul*60ul*1000ul;
 
 
 
@@ -294,7 +295,12 @@ void displayState() {
   display.print(":");
   display.print(millisToTimeFormat((millis() - millisOnStateChangePasiveHumidifier), 1));
   display.print(":");
-  display.println(millisToTimeFormat((millis() - millisOnStateChangePasiveHumidifier), 0));
+  display.print(millisToTimeFormat((millis() - millisOnStateChangePasiveHumidifier), 0));
+  display.print(" (");
+  display.print(((randomMillisToStayInCurrentPassiveHumidifierState/1000)/60)/60);
+  display.println("h)");
+
+  
 
   display.display();
 
@@ -311,27 +317,23 @@ void displayState() {
   display.print(":");
   display.print(millisToTimeFormat((millis() - millisOnStateChangeHumidifier), 1));
   display.print(":");
-  display.println(millisToTimeFormat((millis() - millisOnStateChangeHumidifier), 0));
+  display.print(millisToTimeFormat((millis() - millisOnStateChangeHumidifier), 0));
+  display.print(" (");
+  display.print(((randomMillisToStayInCurrentPassiveHumidifierState/1000)/60)/60);
+  display.println("h)");
 
   display.display();
 }
 
 void setPassiveHumidifierState(void) {
-  
-  if(isPasiveHumidifierOn == true){
-    if(millis() - millisOnStateChangePasiveHumidifier > BIOME_FORCE_PASIVE_HUMIDIFIER_CYCLE_ON_MILLIS) {
-      isPasiveHumidifierOn = false;
-      millisOnStateChangePasiveHumidifier = millis();
-    }
-  } else {
-    if(millis() - millisOnStateChangePasiveHumidifier > BIOME_FORCE_PASIVE_HUMIDIFIER_CYCLE_OFF_MILLIS) {
-      isPasiveHumidifierOn = true;
-      millisOnStateChangePasiveHumidifier = millis();
-    }
+  // Serial.println(randomMillisToStayInCurrentPassiveHumidifierState);
+  if(millis() - millisOnStateChangePasiveHumidifier > randomMillisToStayInCurrentPassiveHumidifierState) {
+    togglePassiveHumidifierStateWithRandomInterval();
   }
   
 }
-void forceTogglePassiveHumidifierState(void) {
+void togglePassiveHumidifierStateWithRandomInterval(void) {
+  randomMillisToStayInCurrentPassiveHumidifierState = random(minRandomMillisToStayInCurrentPassiveHumidifierState, maxRandomMillisToStayInCurrentPassiveHumidifierState);
   if(isPasiveHumidifierOn == true) {
     isPasiveHumidifierOn = false;
   } else {
@@ -346,7 +348,7 @@ void initTogglePassiveHumidifierbutton(void) {
 void handlePassiveHumidifierButtonState(void) {
   int state = digitalRead(BUTTON_TOGGLE_PASSIVE_HUMIDIFIER);
   if(state == 0) {
-    forceTogglePassiveHumidifierState();
+    togglePassiveHumidifierStateWithRandomInterval();
   }
 }
 
